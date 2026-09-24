@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulación 3D - Sólido de Revolución (Capas Cilíndricas)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #0b0f19;
+            color: #f1f5f9;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            user-select: none;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        /* Glassmorphic UI Panel */
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.78);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+        }
+
+        .glass-card {
+            background: rgba(30, 41, 59, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        /* Custom Scrollbar for side panel */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.6);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(99, 102, 241, 0.5);
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(99, 102, 241, 0.8);
+        }
+
+        /* Custom Slider Styling */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: transparent;
+            width: 100%;
+        }
+        input[type=range]:focus {
+            outline: none;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 6px;
+            cursor: pointer;
+            background: #334155;
+            border-radius: 3px;
+            border: none;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            height: 18px;
+            width: 18px;
+            border-radius: 50%;
+            background: #6366f1;
+            cursor: pointer;
+            -webkit-appearance: none;
+            margin-top: -6px;
+            box-shadow: 0 0 10px rgba(99, 102, 241, 0.5);
+            transition: transform 0.1s ease, background-color 0.1s ease;
+        }
+        input[type=range]::-webkit-slider-thumb:hover {
+            transform: scale(1.15);
+            background: #818cf8;
+        }
+
+        /* Formula math styling */
+        .math-expr {
+            font-family: 'Cambria Math', 'Times New Roman', serif;
+            font-style: italic;
+        }
+
+        /* Tooltip overlay on canvas */
+        .badge-axis {
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body class="w-full h-screen overflow-hidden relative">
+
+    <div id="canvas-container"></div>
+
+    <!-- Floating Control Panel -->
+    <div class="absolute top-4 left-4 z-10 w-96 max-h-[calc(100vh-2rem)] overflow-y-auto glass-panel rounded-2xl p-5 space-y-4 text-slate-200">
+        <!-- Header Title -->
+        <div class="border-b border-slate-700/60 pb-3">
+            <div class="flex items-center space-x-2">
+                <span class="p-2 bg-indigo-600/30 text-indigo-400 rounded-lg text-lg">
+                    <i class="fa-solid fa-cube"></i>
+                </span>
+                <div>
+                    <h1 class="text-lg font-bold text-white leading-tight">Sólido de Revolución</h1>
+                    <p class="text-xs text-indigo-300">Método de Capas Cilíndricas</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Problem Specifications Section -->
+        <div class="space-y-2">
+            <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400">Especificaciones del Problema</h2>
+            <div class="glass-card rounded-xl p-3 text-xs space-y-1.5 font-mono">
+                <div class="flex justify-between items-center">
+                    <span class="text-slate-400">Función superior:</span>
+                    <span class="text-emerald-400 font-bold">f(x) = -x² + 4x</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-slate-400">Función inferior:</span>
+                    <span class="text-amber-400 font-bold">g(x) = x</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-slate-400">Intervalo de integración:</span>
+                    <span class="text-sky-400 font-bold">x ∈ [0, 3]</span>
+                </div>
+                <div class="flex justify-between items-center border-t border-slate-700/50 pt-1.5 mt-1">
+                    <span class="text-slate-400">Eje de rotación:</span>
+                    <span class="text-rose-400 font-bold">Eje Y (x = 0)</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Shell Formulas Box -->
+        <div class="glass-card rounded-xl p-3 text-xs space-y-2">
+            <h3 class="font-bold text-indigo-300 text-xs flex items-center gap-1.5">
+                <i class="fa-solid fa-layer-group"></i> Elemento de Capa Cilíndrica
+            </h3>
+            <div class="grid grid-cols-2 gap-2 text-center">
+                <div class="bg-slate-800/80 p-2 rounded-lg border border-slate-700/50">
+                    <div class="text-[10px] text-slate-400 uppercase">Radio <span class="math-expr">r(x)</span></div>
+                    <div class="text-indigo-400 font-bold text-sm mt-0.5"><span class="math-expr">x</span></div>
+                </div>
+                <div class="bg-slate-800/80 p-2 rounded-lg border border-slate-700/50">
+                    <div class="text-[10px] text-slate-400 uppercase">Altura <span class="math-expr">h(x)</span></div>
+                    <div class="text-cyan-400 font-bold text-sm mt-0.5"><span class="math-expr">-x² + 3x</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Interactive Controls -->
+        <div class="space-y-3 pt-1">
+            <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400">Controles Interactivos</h2>
+
+            <!-- Rotation Angle Slider -->
+            <div class="space-y-1">
+                <div class="flex justify-between text-xs">
+                    <span class="font-medium text-slate-300">Ángulo de Rotación (θ):</span>
+                    <span id="angleValue" class="font-bold text-indigo-400">360° (2.00π rad)</span>
+                </div>
+                <input type="range" id="angleSlider" min="0" max="360" value="360" step="1">
+            </div>
+
+            <!-- Play / Pause & Reset Controls -->
+            <div class="flex gap-2">
+                <button id="btnPlay" class="flex-1 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white text-xs font-bold py-2 px-3 rounded-xl flex items-center justify-center gap-2 transition">
+                    <i id="playIcon" class="fa-solid fa-play"></i>
+                    <span id="playText">Animar Rotación</span>
+                </button>
+                <button id="btnReset" class="bg-slate-700 hover:bg-slate-600 active:bg-slate-800 text-white text-xs font-bold py-2 px-3 rounded-xl transition" title="Reiniciar Vista">
+                    <i class="fa-solid fa-rotate-right"></i>
+                </button>
+            </div>
+
+            <!-- Cylindrical Shell Position Slider (x) -->
+            <div class="space-y-1 pt-2 border-t border-slate-700/60">
+                <div class="flex justify-between text-xs">
+                    <span class="font-medium text-slate-300">Posición de Capa Muestra (<span class="math-expr">x</span>):</span>
+                    <span id="xShellValue" class="font-bold text-cyan-400">x = 1.50</span>
+                </div>
+                <input type="range" id="xShellSlider" min="0.05" max="2.95" value="1.50" step="0.05">
+            </div>
+
+            <!-- Dynamic Values display for selected x -->
+            <div class="glass-card rounded-xl p-2.5 text-xs grid grid-cols-2 gap-x-2 gap-y-1">
+                <div><span class="text-slate-400">Radio actual r:</span> <span id="valR" class="font-mono text-indigo-300 font-bold">1.50</span></div>
+                <div><span class="text-slate-400">Altura actual h:</span> <span id="valH" class="font-mono text-cyan-300 font-bold">2.25</span></div>
+                <div class="col-span-2 border-t border-slate-700/40 pt-1 mt-0.5 flex justify-between">
+                    <span class="text-slate-400">Diferencial dV:</span>
+                    <span id="valDV" class="font-mono text-emerald-400 font-bold">2π(1.50)(2.25)dx = 6.75π dx</span>
+                </div>
+            </div>
+
+            <!-- Visibility Toggle Switches -->
+            <div class="space-y-1.5 pt-1 text-xs">
+                <label class="flex items-center justify-between cursor-pointer group">
+                    <span class="text-slate-300 group-hover:text-white transition">Mostrar Sólido 3D</span>
+                    <input type="checkbox" id="chkSolid" checked class="accent-indigo-500 w-4 h-4 cursor-pointer">
+                </label>
+                <label class="flex items-center justify-between cursor-pointer group">
+                    <span class="text-slate-300 group-hover:text-white transition">Mostrar Región Plana 2D</span>
+                    <input type="checkbox" id="chkRegion" checked class="accent-indigo-500 w-4 h-4 cursor-pointer">
+                </label>
+                <label class="flex items-center justify-between cursor-pointer group">
+                    <span class="text-slate-300 group-hover:text-white transition">Mostrar Capa Cilíndrica Destacada</span>
+                    <input type="checkbox" id="chkShell" checked class="accent-indigo-500 w-4 h-4 cursor-pointer">
+                </label>
+                <label class="flex items-center justify-between cursor-pointer group">
+                    <span class="text-slate-300 group-hover:text-white transition">Modo Malla (Wireframe)</span>
+                    <input type="checkbox" id="chkWireframe" class="accent-indigo-500 w-4 h-4 cursor-pointer">
+                </label>
+            </div>
+        </div>
+
+        <!-- Calculated Analytical Volume Result -->
+        <div class="bg-gradient-to-r from-indigo-900/50 to-purple-900/50 border border-indigo-500/30 rounded-xl p-3 text-xs space-y-1">
+            <div class="text-indigo-300 font-bold flex items-center justify-between">
+                <span>Cálculo Exacto del Volumen:</span>
+                <i class="fa-solid fa-calculator text-indigo-400"></i>
+            </div>
+            <div class="font-mono text-center text-sm py-1 text-white bg-slate-900/60 rounded-lg my-1 border border-indigo-500/20">
+                V = 2π ∫₀³ x (-x² + 3x) dx = <span class="text-emerald-400 font-bold">27π / 2</span>
+            </div>
+            <div class="flex justify-between text-[11px] text-slate-300">
+                <span>Valor exacto: <strong class="text-white">13.5 π u³</strong></span>
+                <span>Aproximado: <strong class="text-emerald-400">≈ 42.411 u³</strong></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Right Legend & Guide -->
+    <div class="absolute top-4 right-4 z-10 glass-panel rounded-2xl p-3 text-xs space-y-2 hidden sm:block">
+        <div class="font-bold text-slate-300 mb-1 border-b border-slate-700/60 pb-1">Ejes e Indicadores</div>
+        <div class="flex items-center gap-2">
+            <span class="w-3 h-3 rounded-full bg-red-500 inline-block"></span>
+            <span class="text-slate-300">Eje X (Horizontal / Radio)</span>
+        </div>
+        <div class="flex items-center gap-2">
+            <span class="w-3 h-3 rounded-full bg-green-500 inline-block"></span>
+            <span class="text-slate-300">Eje Y (Eje de Rotación)</span>
+        </div>
+        <div class="flex items-center gap-2">
+            <span class="w-3 h-3 rounded-full bg-blue-500 inline-block"></span>
+            <span class="text-slate-300">Eje Z (Profundidad)</span>
+        </div>
+        <div class="flex items-center gap-2 pt-1 border-t border-slate-700/40">
+            <span class="w-3 h-3 rounded-full bg-cyan-400 inline-block"></span>
+            <span class="text-slate-300">Capa Cilíndrica (x = <span id="legendX">1.5</span>)</span>
+        </div>
+    </div>
+
+    <!-- Bottom Left Navigation Hints -->
+    <div class="absolute bottom-4 left-4 z-10 glass-panel rounded-xl px-3 py-2 text-[11px] text-slate-400 flex items-center gap-3">
+        <span><i class="fa-solid fa-computer-mouse text-indigo-400"></i> Click + Arrastrar: Rotar</span>
+        <span><i class="fa-solid fa-arrows-up-down-left-right text-indigo-400"></i> Clic Derecho + Arrastrar: Desplazar</span>
+        <span><i class="fa-solid fa-magnifying-glass-plus text-indigo-400"></i> Rueda: Zoom</span>
+    </div>
+
+    <script>
+        // --- MATHEMATICAL FUNCTIONS ---
+        // Upper function f(x) = -x^2 + 4x
+        const f = (x) => -x * x + 4 * x;
+        // Lower function g(x) = x
+        const g = (x) => x;
+        // Shell Height h(x) = f(x) - g(x) = -x^2 + 3x
+        const h = (x) => -x * x + 3 * x;
+
+        const X_MIN = 0;
+        const X_MAX = 3;
+
+        // --- SCENE SETUP ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0b0f19);
+
+        // Camera setup
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(6, 4.5, 7.5);
+
+        // Renderer setup
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        container.appendChild(renderer.domElement);
+
+        // Controls
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.target.set(0, 2, 0);
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
+        dirLight.position.set(8, 12, 10);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 2048;
+        dirLight.shadow.mapSize.height = 2048;
+        scene.add(dirLight);
+
+        const dirLight2 = new THREE.DirectionalLight(0x818cf8, 0.4);
+        dirLight2.position.set(-8, -4, -8);
+        scene.add(dirLight2);
+
+        // Subtle Grid Floor
+        const gridHelper = new THREE.GridHelper(16, 32, 0x334155, 0x1e293b);
+        gridHelper.position.y = -0.01;
+        scene.add(gridHelper);
+
+        // --- AXES CREATION ---
+        function createAxes() {
+            const axesGroup = new THREE.Group();
+
+            const createAxis = (color, start, end) => {
+                const material = new THREE.LineBasicMaterial({ color: color, linewidth: 3 });
+                const points = [start, end];
+                const geometry = new THREE.BufferGeometry().setFromPoints(points);
+                return new THREE.Line(geometry, material);
+            };
+
+            // X axis (Red)
+            axesGroup.add(createAxis(0xef4444, new THREE.Vector3(-1, 0, 0), new THREE.Vector3(5, 0, 0)));
+            // Y axis (Green - Axis of Rotation)
+            axesGroup.add(createAxis(0x22c55e, new THREE.Vector3(0, -1, 0), new THREE.Vector3(0, 6, 0)));
+            // Z axis (Blue)
+            axesGroup.add(createAxis(0x3b82f6, new THREE.Vector3(0, 0, -1), new THREE.Vector3(0, 0, 5)));
+
+            // Text / Sprite Labels for Axes
+            const createLabel = (text, color, position) => {
+                const canvas = document.createElement('canvas');
+                canvas.width = 128;
+                canvas.height = 128;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = color;
+                ctx.font = 'Bold 50px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(text, 64, 64);
+
+                const texture = new THREE.CanvasTexture(canvas);
+                const spriteMaterial = new THREE.SpriteMaterial({ map: texture });
+                const sprite = new THREE.Sprite(spriteMaterial);
+                sprite.position.copy(position);
+                sprite.scale.set(0.6, 0.6, 1);
+                return sprite;
+            };
+
+            axesGroup.add(createLabel('X', '#ef4444', new THREE.Vector3(5.3, 0, 0)));
+            axesGroup.add(createLabel('Y (Eje)', '#22c55e', new THREE.Vector3(0, 6.3, 0)));
+            axesGroup.add(createLabel('Z', '#3b82f6', new THREE.Vector3(0, 0, 5.3)));
+
+            // Tick marks along X and Y
+            for (let i = 1; i <= 4; i++) {
+                // X ticks
+                const xTick = createAxis(0x94a3b8, new THREE.Vector3(i, -0.1, 0), new THREE.Vector3(i, 0.1, 0));
+                axesGroup.add(xTick);
+                axesGroup.add(createLabel(i.toString(), '#cbd5e1', new THREE.Vector3(i, -0.35, 0)));
+
+                // Y ticks
+                const yTick = createAxis(0x94a3b8, new THREE.Vector3(-0.1, i, 0), new THREE.Vector3(0.1, i, 0));
+                axesGroup.add(yTick);
+                axesGroup.add(createLabel(i.toString(), '#cbd5e1', new THREE.Vector3(-0.35, i, 0)));
+            }
+
+            scene.add(axesGroup);
+        }
+        createAxes();
+
+        // --- 2D REGION ENCLOSED IN XY PLANE ---
+        let regionGroup = new THREE.Group();
+        scene.add(regionGroup);
+
+        function build2DRegion() {
+            // Clear existing
+            while (regionGroup.children.length > 0) {
+                regionGroup.remove(regionGroup.children[0]);
+            }
+
+            const steps = 60;
+            const shape = new THREE.Shape();
+
+            // Start at (0, g(0)) = (0,0)
+            shape.moveTo(0, g(0));
+
+            // Follow upper curve f(x) from 0 to 3
+            for (let i = 0; i <= steps; i++) {
+                const xVal = X_MIN + (i / steps) * (X_MAX - X_MIN);
+                shape.lineTo(xVal, f(xVal));
+            }
+
+            // Follow lower curve g(x) back from 3 to 0
+            for (let i = steps; i >= 0; i--) {
+                const xVal = X_MIN + (i / steps) * (X_MAX - X_MIN);
+                shape.lineTo(xVal, g(xVal));
+            }
+
+            const shapeGeo = new THREE.ShapeGeometry(shape);
+            const shapeMat = new THREE.MeshStandardMaterial({
+                color: 0x6366f1,
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: 0.85,
+                roughness: 0.3,
+                metalness: 0.1
+            });
+            const regionMesh = new THREE.Mesh(shapeGeo, shapeMat);
+            regionGroup.add(regionMesh);
+
+            // Curve f(x) line (Emerald)
+            const ptsF = [];
+            for (let i = 0; i <= steps; i++) {
+                const xv = X_MIN + (i / steps) * (X_MAX - X_MIN);
+                ptsF.push(new THREE.Vector3(xv, f(xv), 0.01));
+            }
+            const lineGeoF = new THREE.BufferGeometry().setFromPoints(ptsF);
+            const lineMatF = new THREE.LineBasicMaterial({ color: 0x10b981, linewidth: 3 });
+            regionGroup.add(new THREE.Line(lineGeoF, lineMatF));
+
+            // Curve g(x) line (Amber)
+            const ptsG = [];
+            for (let i = 0; i <= steps; i++) {
+                const xv = X_MIN + (i / steps) * (X_MAX - X_MIN);
+                ptsG.push(new THREE.Vector3(xv, g(xv), 0.01));
+            }
+            const lineGeoG = new THREE.BufferGeometry().setFromPoints(ptsG);
+            const lineMatG = new THREE.LineBasicMaterial({ color: 0xf59e0b, linewidth: 3 });
+            regionGroup.add(new THREE.Line(lineGeoG, lineMatG));
+        }
+        build2DRegion();
+
+        // --- 3D REVOLVED SOLID MESH GENERATION ---
+        let solidMesh = null;
+        let solidGroup = new THREE.Group();
+        scene.add(solidGroup);
+
+        const solidMaterial = new THREE.MeshStandardMaterial({
+            color: 0x6366f1,
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 0.7,
+            roughness: 0.2,
+            metalness: 0.2,
+            wireframe: false
+        });
+
+        function updateSolidMesh(maxAngleRad) {
+            if (solidMesh) {
+                solidGroup.remove(solidMesh);
+                solidMesh.geometry.dispose();
+            }
+
+            if (maxAngleRad <= 0.001) return;
+
+            const xSteps = 50;
+            const thetaSteps = Math.max(4, Math.floor((maxAngleRad / (2 * Math.PI)) * 60));
+
+            const vertices = [];
+            const indices = [];
+            const uvs = [];
+
+            // Helper index calculator
+            // Top Surface: grid [0..xSteps, 0..thetaSteps] -> index offset 0
+            // Bottom Surface: grid [0..xSteps, 0..thetaSteps] -> index offset topCount
+            const gridWidth = thetaSteps + 1;
+
+            // 1. TOP SURFACE (y = f(x))
+            for (let i = 0; i <= xSteps; i++) {
+                const xVal = X_MIN + (i / xSteps) * (X_MAX - X_MIN);
+                const yVal = f(xVal);
+                for (let j = 0; j <= thetaSteps; j++) {
+                    const theta = (j / thetaSteps) * maxAngleRad;
+                    const vx = xVal * Math.cos(theta);
+                    const vz = xVal * Math.sin(theta);
+                    vertices.push(vx, yVal, vz);
+                    uvs.push(i / xSteps, j / thetaSteps);
+                }
+            }
+
+            // 2. BOTTOM SURFACE (y = g(x))
+            const topOffset = vertices.length / 3;
+            for (let i = 0; i <= xSteps; i++) {
+                const xVal = X_MIN + (i / xSteps) * (X_MAX - X_MIN);
+                const yVal = g(xVal);
+                for (let j = 0; j <= thetaSteps; j++) {
+                    const theta = (j / thetaSteps) * maxAngleRad;
+                    const vx = xVal * Math.cos(theta);
+                    const vz = xVal * Math.sin(theta);
+                    vertices.push(vx, yVal, vz);
+                    uvs.push(i / xSteps, j / thetaSteps);
+                }
+            }
+
+            // Indices for Top Surface
+            for (let i = 0; i < xSteps; i++) {
+                for (let j = 0; j < thetaSteps; j++) {
+                    const a = i * gridWidth + j;
+                    const b = (i + 1) * gridWidth + j;
+                    const c = (i + 1) * gridWidth + (j + 1);
+                    const d = i * gridWidth + (j + 1);
+                    indices.push(a, b, d);
+                    indices.push(b, c, d);
+                }
+            }
+
+            // Indices for Bottom Surface (reversed winding for correct normals)
+            for (let i = 0; i < xSteps; i++) {
+                for (let j = 0; j < thetaSteps; j++) {
+                    const a = topOffset + i * gridWidth + j;
+                    const b = topOffset + (i + 1) * gridWidth + j;
+                    const c = topOffset + (i + 1) * gridWidth + (j + 1);
+                    const d = topOffset + i * gridWidth + (j + 1);
+                    indices.push(a, d, b);
+                    indices.push(b, d, c);
+                }
+            }
+
+            // 3. CAP AT THETA = 0 (if cutaway or full)
+            // Connects Top(i, 0) and Bottom(i, 0)
+            const capStartOffset = vertices.length / 3;
+            for (let i = 0; i <= xSteps; i++) {
+                const xVal = X_MIN + (i / xSteps) * (X_MAX - X_MIN);
+                vertices.push(xVal, f(xVal), 0); // Top
+                vertices.push(xVal, g(xVal), 0); // Bottom
+            }
+            for (let i = 0; i < xSteps; i++) {
+                const t1 = capStartOffset + i * 2;
+                const b1 = capStartOffset + i * 2 + 1;
+                const t2 = capStartOffset + (i + 1) * 2;
+                const b2 = capStartOffset + (i + 1) * 2 + 1;
+                indices.push(t1, b1, t2);
+                indices.push(b1, b2, t2);
+            }
+
+            // 4. CAP AT THETA = maxAngleRad (if angle < 2PI)
+            if (maxAngleRad < Math.PI * 2 - 0.01) {
+                const capEndOffset = vertices.length / 3;
+                const cosE = Math.cos(maxAngleRad);
+                const sinE = Math.sin(maxAngleRad);
+                for (let i = 0; i <= xSteps; i++) {
+                    const xVal = X_MIN + (i / xSteps) * (X_MAX - X_MIN);
+                    vertices.push(xVal * cosE, f(xVal), xVal * sinE); // Top
+                    vertices.push(xVal * cosE, g(xVal), xVal * sinE); // Bottom
+                }
+                for (let i = 0; i < xSteps; i++) {
+                    const t1 = capEndOffset + i * 2;
+                    const b1 = capEndOffset + i * 2 + 1;
+                    const t2 = capEndOffset + (i + 1) * 2;
+                    const b2 = capEndOffset + (i + 1) * 2 + 1;
+                    indices.push(t1, t2, b1);
+                    indices.push(b1, t2, b2);
+                }
+            }
+
+            const geometry = new THREE.BufferGeometry();
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+            geometry.setIndex(indices);
+            geometry.computeVertexNormals();
+
+            solidMesh = new THREE.Mesh(geometry, solidMaterial);
+            solidGroup.add(solidMesh);
+        }
+
+        // --- CYLINDRICAL SHELL HIGHLIGHT & ANNOTATIONS ---
+        let shellGroup = new THREE.Group();
+        scene.add(shellGroup);
+
+        function buildCylindricalShell(xc, maxAngleRad) {
+            while (shellGroup.children.length > 0) {
+                const child = shellGroup.children[0];
+                if (child.geometry) child.geometry.dispose();
+                shellGroup.remove(child);
+            }
+
+            if (maxAngleRad <= 0.01) return;
+
+            const dx = 0.08; // visual thickness for the shell
+            const rInner = Math.max(0.01, xc - dx / 2);
+            const rOuter = xc + dx / 2;
+            const yMin = g(xc);
+            const yMax = f(xc);
+            const shellHeight = yMax - yMin;
+
+            if (shellHeight <= 0.001) return;
+
+            // Geometry for translucent cylindrical tube shell
+            const cylinderGeo = new THREE.CylinderGeometry(
+                rOuter, rOuter, shellHeight, 48, 1, true, 0, maxAngleRad
+            );
+            // Move origin to lower bound yMin
+            cylinderGeo.translate(0, yMin + shellHeight / 2, 0);
+
+            const cylinderMat = new THREE.MeshStandardMaterial({
+                color: 0x06b6d4,
+                transparent: true,
+                opacity: 0.75,
+                side: THREE.DoubleSide,
+                roughness: 0.2,
+                metalness: 0.3
+            });
+
+            const shellMesh = new THREE.Mesh(cylinderGeo, cylinderMat);
+            shellGroup.add(shellMesh);
+
+            // Add inner shell wall for depth
+            const innerGeo = new THREE.CylinderGeometry(
+                rInner, rInner, shellHeight, 48, 1, true, 0, maxAngleRad
+            );
+            innerGeo.translate(0, yMin + shellHeight / 2, 0);
+            const innerMesh = new THREE.Mesh(innerGeo, cylinderMat);
+            shellGroup.add(innerMesh);
+
+            // Top and Bottom Ring Caps for Shell
+            const topRingGeo = new THREE.RingGeometry(rInner, rOuter, 48, 1, 0, maxAngleRad);
+            topRingGeo.rotateX(-Math.PI / 2);
+            topRingGeo.translate(0, yMax, 0);
+            shellGroup.add(new THREE.Mesh(topRingGeo, cylinderMat));
+
+            const botRingGeo = new THREE.RingGeometry(rInner, rOuter, 48, 1, 0, maxAngleRad);
+            botRingGeo.rotateX(-Math.PI / 2);
+            botRingGeo.translate(0, yMin, 0);
+            shellGroup.add(new THREE.Mesh(botRingGeo, cylinderMat));
+
+            // --- RADIUS LINE AND HEIGHT LINE INDICATORS ---
+            const yMid = yMin + shellHeight / 2;
+
+            // 1. Radius Line (Red/Pink dashed or glowing line along X at yMid)
+            const radiusPts = [
+                new THREE.Vector3(0, yMid, 0),
+                new THREE.Vector3(xc, yMid, 0)
+            ];
+            const radiusGeo = new THREE.BufferGeometry().setFromPoints(radiusPts);
+            const radiusMat = new THREE.LineBasicMaterial({ color: 0xf43f5e, linewidth: 4 });
+            const radiusLine = new THREE.Line(radiusGeo, radiusMat);
+            shellGroup.add(radiusLine);
+
+            // 2. Height Line (Cyan line at x = xc)
+            const heightPts = [
+                new THREE.Vector3(xc, yMin, 0),
+                new THREE.Vector3(xc, yMax, 0)
+            ];
+            const heightGeo = new THREE.BufferGeometry().setFromPoints(heightPts);
+            const heightMat = new THREE.LineBasicMaterial({ color: 0x22d3ee, linewidth: 4 });
+            const heightLine = new THREE.Line(heightGeo, heightMat);
+            shellGroup.add(heightLine);
+
+            // --- SPRITE LABELS ON 3D SHELL ---
+            const makeTextSprite = (text, color) => {
+                const canvas = document.createElement('canvas');
+                canvas.width = 256;
+                canvas.height = 96;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+                ctx.roundRect ? ctx.roundRect(4, 4, 248, 88, 12) : ctx.fillRect(4, 4, 248, 88);
+                ctx.fill();
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 4;
+                ctx.stroke();
+
+                ctx.fillStyle = color;
+                ctx.font = 'Bold 36px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(text, 128, 48);
+
+                const texture = new THREE.CanvasTexture(canvas);
+                const spriteMat = new THREE.SpriteMaterial({ map: texture, depthTest: false });
+                const sprite = new THREE.Sprite(spriteMat);
+                sprite.scale.set(1.2, 0.45, 1);
+                return sprite;
+            };
+
+            const rLabel = makeTextSprite(`r(x) = ${xc.toFixed(2)}`, '#f43f5e');
+            rLabel.position.set(xc / 2, yMid + 0.25, 0);
+            shellGroup.add(rLabel);
+
+            const hLabel = makeTextSprite(`h(x) = ${shellHeight.toFixed(2)}`, '#22d3ee');
+            hLabel.position.set(xc + 0.6, yMid, 0);
+            shellGroup.add(hLabel);
+        }
+
+        // --- UI INTERACTION & EVENT HANDLERS ---
+        const angleSlider = document.getElementById('angleSlider');
+        const angleValueDisplay = document.getElementById('angleValue');
+        const xShellSlider = document.getElementById('xShellSlider');
+        const xShellValueDisplay = document.getElementById('xShellValue');
+
+        const btnPlay = document.getElementById('btnPlay');
+        const playIcon = document.getElementById('playIcon');
+        const playText = document.getElementById('playText');
+        const btnReset = document.getElementById('btnReset');
+
+        const chkSolid = document.getElementById('chkSolid');
+        const chkRegion = document.getElementById('chkRegion');
+        const chkShell = document.getElementById('chkShell');
+        const chkWireframe = document.getElementById('chkWireframe');
+
+        const valR = document.getElementById('valR');
+        const valH = document.getElementById('valH');
+        const valDV = document.getElementById('valDV');
+        const legendX = document.getElementById('legendX');
+
+        let isAnimating = false;
+        let animationFrameId = null;
+
+        function updateScene() {
+            const angleDeg = parseFloat(angleSlider.value);
+            const angleRad = (angleDeg * Math.PI) / 180;
+            const piRatio = (angleDeg / 180).toFixed(2);
+            angleValueDisplay.textContent = `${angleDeg}° (${piRatio}π rad)`;
+
+            const xVal = parseFloat(xShellSlider.value);
+            xShellValueDisplay.textContent = `x = ${xVal.toFixed(2)}`;
+            legendX.textContent = xVal.toFixed(2);
+
+            // Update formula text box values
+            const curR = xVal;
+            const curH = h(xVal);
+            valR.textContent = curR.toFixed(2);
+            valH.textContent = curH.toFixed(2);
+            const dvFactor = (2 * curR * curH).toFixed(2);
+            valDV.textContent = `2π(${curR.toFixed(2)})(${curH.toFixed(2)})dx = ${dvFactor}π dx`;
+
+            // Material wireframe
+            solidMaterial.wireframe = chkWireframe.checked;
+
+            // Visibility
+            solidGroup.visible = chkSolid.checked;
+            regionGroup.visible = chkRegion.checked;
+            shellGroup.visible = chkShell.checked;
+
+            // Rebuild Meshes
+            updateSolidMesh(angleRad);
+            buildCylindricalShell(xVal, angleRad);
+        }
+
+        // Slider listeners
+        angleSlider.addEventListener('input', updateScene);
+        xShellSlider.addEventListener('input', updateScene);
+
+        // Checkbox listeners
+        chkSolid.addEventListener('change', updateScene);
+        chkRegion.addEventListener('change', updateScene);
+        chkShell.addEventListener('change', updateScene);
+        chkWireframe.addEventListener('change', updateScene);
+
+        // Animation Play / Pause Toggle
+        btnPlay.addEventListener('click', () => {
+            isAnimating = !isAnimating;
+            if (isAnimating) {
+                playIcon.className = "fa-solid fa-pause";
+                playText.textContent = "Pausar";
+                // If angle is at max, start from 0
+                if (parseFloat(angleSlider.value) >= 360) {
+                    angleSlider.value = 0;
+                }
+            } else {
+                playIcon.className = "fa-solid fa-play";
+                playText.textContent = "Animar Rotación";
+            }
+        });
+
+        // Reset View Button
+        btnReset.addEventListener('click', () => {
+            isAnimating = false;
+            playIcon.className = "fa-solid fa-play";
+            playText.textContent = "Animar Rotación";
+            angleSlider.value = 360;
+            xShellSlider.value = 1.50;
+            camera.position.set(6, 4.5, 7.5);
+            controls.target.set(0, 2, 0);
+            controls.update();
+            updateScene();
+        });
+
+        // Window Resize handling
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // --- RENDER & ANIMATION LOOP ---
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (isAnimating) {
+                let currentAngle = parseFloat(angleSlider.value);
+                currentAngle += 1.5; // Rotation speed
+                if (currentAngle >= 360) {
+                    currentAngle = 360;
+                    isAnimating = false;
+                    playIcon.className = "fa-solid fa-play";
+                    playText.textContent = "Animar Rotación";
+                }
+                angleSlider.value = currentAngle;
+                updateScene();
+            }
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // Initial build
+        updateScene();
+        animate();
+    </script>
+</body>
+</html>
